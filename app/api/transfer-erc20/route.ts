@@ -1,8 +1,16 @@
-import { createPublicClient, createWalletClient, http, formatEther } from 'viem';
+import { createPublicClient, createWalletClient, http, parseAbi, encodeFunctionData } from 'viem';
 import { mnemonicToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 
-// The execute function ABI is all we need
+// ERC20 interface functions we need
+const ERC20_ABI = parseAbi([
+  'function balanceOf(address owner) view returns (uint256)',
+  'function transfer(address to, uint256 amount) returns (bool)',
+  'function symbol() view returns (string)',
+  'function decimals() view returns (uint8)'
+] as const);
+
+// Smart Wallet execute function
 const EXECUTE_ABI = {
   type: "function",
   name: "execute",
@@ -17,7 +25,11 @@ const EXECUTE_ABI = {
 
 export async function POST(request: Request) {
   try {
-    const { destinationAddress } = await request.json();
+    const { tokenAddress, destinationAddress } = await request.json();
+
+    if (!tokenAddress) {
+      return new Response('Token address is required', { status: 400 });
+    }
 
     if (!process.env.RECOVERY_MNEMONIC) {
       return new Response('Recovery mnemonic not configured', { status: 500 });
@@ -34,29 +46,46 @@ export async function POST(request: Request) {
       transport: http(process.env.NEXT_PUBLIC_RPC_URL),
     });
 
-    // Get current ETH balance
-    const balance = await publicClient.getBalance({
-      address: smartWalletAddress as `0x${string}`,
-    });
+    // Get token details
+    const [balance, symbol, decimals] = await Promise.all([
+      publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [smartWalletAddress as `0x${string}`],
+      }),
+      publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'symbol',
+      }),
+      publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'decimals',
+      }),
+    ]);
 
-    // If no destination address provided, just return the balance
+    // If no destination address provided, just return the balance and token info
     if (!destinationAddress) {
       return new Response(JSON.stringify({
-        balance: formatEther(balance),
+        balance: balance.toString(),
+        symbol,
+        decimals,
       }));
     }
 
     // Only check for 0 balance if attempting a transfer
     if (balance === 0n && destinationAddress) {
-      return new Response('No ETH balance to transfer', { status: 400 });
+      return new Response(`No ${symbol} balance to transfer`, { status: 400 });
     }
 
-    // Process the mnemonic string - remove quotes and normalize spaces
+    // Process the mnemonic string
     const cleanMnemonic = process.env.RECOVERY_MNEMONIC
-      .replace(/^["']|["']$/g, '') // Remove any surrounding quotes
-      .split(/\s+/)  // Split on any number of spaces
-      .join(' ')     // Join with single spaces
-      .replace(/^wallet\s+/, ''); // Remove "wallet" prefix if present
+      .replace(/^["']|["']$/g, '')
+      .split(/\s+/)
+      .join(' ')
+      .replace(/^wallet\s+/, '');
 
     // Create wallet client with recovery mnemonic
     const account = mnemonicToAccount(cleanMnemonic);
@@ -66,15 +95,22 @@ export async function POST(request: Request) {
       transport: http(process.env.NEXT_PUBLIC_RPC_URL),
     });
 
-    // Call execute on the smart wallet to transfer the full balance
+    // Encode the transfer function call
+    const data = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: 'transfer',
+      args: [destinationAddress as `0x${string}`, balance],
+    });
+
+    // Call execute on the smart wallet to transfer the tokens
     const hash = await walletClient.writeContract({
       address: smartWalletAddress as `0x${string}`,
       abi: [EXECUTE_ABI],
       functionName: 'execute',
       args: [
-        destinationAddress as `0x${string}`,
-        balance,
-        '0x' as const
+        tokenAddress as `0x${string}`,
+        0n,
+        data
       ]
     });
 
@@ -82,13 +118,15 @@ export async function POST(request: Request) {
     await publicClient.waitForTransactionReceipt({ hash });
 
     return new Response(JSON.stringify({
-      balance: formatEther(balance),
+      balance: balance.toString(),
+      symbol,
+      decimals,
       transactionHash: hash,
       status: 'Transaction sent successfully'
     }));
 
   } catch (error) {
-    console.error('Error in transfer-eth route:', error);
+    console.error('Error in transfer-erc20 route:', error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Internal server error'
     }), { status: 500 });

@@ -1,5 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-onchain`]().
+# Smart Wallet Rescue
 
+A Next.js application for rescuing funds from a Coinbase Smart Wallet using a recovery key. This application enables secure ETH transfers from a smart wallet to any destination address using the wallet's recovery mechanism.
+
+## Features
+
+- Direct smart wallet interaction using recovery key
+- Secure ETH transfer functionality
+- Base network support
+- Real-time balance checking
+- Transaction status monitoring
+
+## Tech Stack
+
+- Next.js with TypeScript
+- Tailwind CSS for styling
+- Viem for Ethereum interactions
+- Base network integration
+
+## Environment Variables Required
+
+- `RECOVERY_MNEMONIC`: The recovery phrase for the smart wallet
+- `NEXT_PUBLIC_SMART_WALLET_ADDRESS`: The address of the smart wallet to rescue
+- `NEXT_PUBLIC_RPC_URL`: Base network RPC URL
 
 ## Getting Started
 

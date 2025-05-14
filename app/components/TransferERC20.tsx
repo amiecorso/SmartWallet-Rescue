@@ -1,27 +1,36 @@
 import { useState } from 'react';
-import { formatEther } from 'viem';
+import { formatUnits } from 'viem';
 import { styles } from './shared/styles';
 
-export default function TransferEth() {
+export default function TransferERC20() {
+  const [tokenAddress, setTokenAddress] = useState('');
   const [destinationAddress, setDestinationAddress] = useState('');
   const [balance, setBalance] = useState<string | null>(null);
+  const [symbol, setSymbol] = useState<string | null>(null);
+  const [decimals, setDecimals] = useState<number>(18);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
 
   const checkBalance = async () => {
+    if (!tokenAddress) {
+      setError('Please enter a token address');
+      return;
+    }
+    
     setError(null);
     setIsLoading(true);
     setBalance(null);
+    setSymbol(null);
     setTxHash(null);
 
     try {
-      const response = await fetch('/api/transfer-eth', {
+      const response = await fetch('/api/transfer-erc20', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ tokenAddress }),
       });
 
       const data = await response.json();
@@ -31,6 +40,8 @@ export default function TransferEth() {
       }
 
       setBalance(data.balance);
+      setSymbol(data.symbol);
+      setDecimals(data.decimals);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -39,8 +50,8 @@ export default function TransferEth() {
   };
 
   const transfer = async () => {
-    if (!destinationAddress) {
-      setError('Please enter a destination address');
+    if (!tokenAddress || !destinationAddress) {
+      setError('Please enter both token and destination addresses');
       return;
     }
 
@@ -49,12 +60,12 @@ export default function TransferEth() {
     setTxHash(null);
 
     try {
-      const response = await fetch('/api/transfer-eth', {
+      const response = await fetch('/api/transfer-erc20', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ destinationAddress }),
+        body: JSON.stringify({ tokenAddress, destinationAddress }),
       });
 
       const data = await response.json();
@@ -74,20 +85,29 @@ export default function TransferEth() {
 
   return (
     <div className={styles.container}>
-      <h2 className={styles.title}>Transfer ETH</h2>
+      <h2 className={styles.title}>Transfer ERC20 Tokens</h2>
       
       <div className={styles.inputGroup}>
+        <input
+          type="text"
+          placeholder="Token Contract Address"
+          value={tokenAddress}
+          onChange={(e) => setTokenAddress(e.target.value)}
+          className={styles.input}
+          disabled={isLoading}
+        />
+        
         <button
           onClick={checkBalance}
-          disabled={isLoading}
+          disabled={isLoading || !tokenAddress}
           className={styles.secondaryButton}
         >
           {isLoading ? 'Loading...' : 'Check Balance'}
         </button>
 
-        {balance !== null && (
+        {balance !== null && symbol && (
           <div className={styles.balanceDisplay}>
-            Balance: {formatEther(BigInt(balance))} ETH
+            Balance: {formatUnits(BigInt(balance), decimals)} {symbol}
           </div>
         )}
       </div>
@@ -104,10 +124,10 @@ export default function TransferEth() {
 
         <button
           onClick={transfer}
-          disabled={isLoading || !destinationAddress || balance === '0'}
+          disabled={isLoading || !tokenAddress || !destinationAddress || balance === '0'}
           className={styles.primaryButton}
         >
-          {isLoading ? 'Processing...' : 'Transfer All ETH'}
+          {isLoading ? 'Processing...' : 'Transfer All Tokens'}
         </button>
       </div>
 
