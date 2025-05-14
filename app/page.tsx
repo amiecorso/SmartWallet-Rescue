@@ -2,6 +2,7 @@
 
 import TransferEth from './components/TransferEth';
 import TransferERC20 from './components/TransferERC20';
+import WalletInfo from './components/WalletInfo';
 
 export default function Home() {
   return (
@@ -11,6 +12,8 @@ export default function Home() {
           <h1 className="text-4xl font-bold text-[#FAFBFB]">Smart Wallet Rescue</h1>
           <p className="text-[#777E90]">Transfer your assets from a Coinbase Smart Wallet using your recovery key</p>
         </div>
+
+        <WalletInfo />
         
         <div className="grid gap-8 md:grid-cols-2">
           <TransferEth />
