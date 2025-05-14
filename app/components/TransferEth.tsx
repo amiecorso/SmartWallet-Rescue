@@ -87,7 +87,7 @@ export default function TransferEth() {
 
         {balance !== null && (
           <div className={styles.balanceDisplay}>
-            Balance: {formatEther(BigInt(balance))} ETH
+            Balance: {balance} ETH
           </div>
         )}
       </div>
